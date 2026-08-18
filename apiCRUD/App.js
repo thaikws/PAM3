@@ -73,6 +73,10 @@ export default function App() {
         Sistema de Cadastro
       </Text>
 
+      <Text style={styles.titulo}>
+        Thainá - 3DS
+      </Text>
+
       {/* Formulário de Cadastro */}
       <View style={styles.form}>
         <TextInput
@@ -137,7 +141,7 @@ export default function App() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#d2e900',
+    backgroundColor: '#d2e2ff',
     paddingTop: 60,
     paddingHorizontal: 20,
   },
@@ -150,7 +154,7 @@ const styles = StyleSheet.create({
   },
 
   form: {
-  backgroundColor: '#ffffff',
+  backgroundColor: '#f7f8fa',
   padding: 15,
   borderRadius: 8,
   marginBottom: 20,
@@ -169,7 +173,7 @@ input: {
   backgroundColor: '#f9f9f9',
 },
 botao: {
-  backgroundColor: '#333333',
+  backgroundColor: '#97acd3',
   padding: 12,
   borderRadius: 6,
   alignItems: 'center',
