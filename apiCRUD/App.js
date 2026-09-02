@@ -165,7 +165,7 @@ export default function App() {
 
       {/* NOME DA DUPLA */}
       <Text style={styles.dupla}>
-        Thainá - 3DS
+        Thainá e Nicole - 3DS
       </Text>
 
       {/* FORMULÁRIO */}
