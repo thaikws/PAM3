@@ -1,10 +1,13 @@
+
 import { useEffect, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
+import * as location from 'expo-location';
+
 import {
   StyleSheet,
   Text,
   View,
-  FlatList,
+  ScrollView,
   ActivityIndicator,
   TextInput,
   TouchableOpacity,
@@ -21,11 +24,22 @@ export default function App() {
   const [latitude, setLatitude] = useState('');
   const [longitude, setLongitude] = useState('');
 
-  // ID do usuário que está sendo editado
-  const [usuarioEditando, setUsuarioEditando] = useState(null);
+  const [testesLocalizacao, setTestesLocalizacao] = useState([]);
+  const [buscandoLocalizacao, setBuscandoLocalizacao] = useState(false);
 
-  // Mensagem que aparece na tela
+  const [usuarioEditando, setUsuarioEditando] = useState(null);
   const [mensagem, setMensagem] = useState('');
+
+  // =========================
+  // LIMPAR FORMULÁRIO
+  // =========================
+  const limparFormulario = () => {
+    setNome('');
+    setEndereco('');
+    setLatitude('');
+    setLongitude('');
+    setUsuarioEditando(null);
+  };
 
   // =========================
   // CADASTRAR
@@ -38,7 +52,7 @@ export default function App() {
       !longitude.trim()
     ) {
       setMensagem(
-        'Por favor, preencha nome, endereço, latitude e longitude.'
+        'Preencha nome, endereço, latitude e longitude.'
       );
       return;
     }
@@ -55,86 +69,9 @@ export default function App() {
       longitude: longitude.trim(),
     };
 
-    setUsuarios((usuariosAtuais) => [
-      novoUsuario,
-      ...usuariosAtuais,
-    ]);
-
+    setUsuarios((lista) => [novoUsuario, ...lista]);
     limparFormulario();
-
     setMensagem('Usuário cadastrado com sucesso!');
-  };
-
-  // =========================
-  // LIMPAR FORMULÁRIO
-  // =========================
-  const limparFormulario = () => {
-    setNome('');
-    setEndereco('');
-    setLatitude('');
-    setLongitude('');
-    setUsuarioEditando(null);
-  };
-
-  // =========================
-  // EXCLUIR
-  // =========================
-  const excluirUsuario = (id) => {
-    const usuario = usuarios.find(
-      (item) => item.id === id
-    );
-
-    if (!usuario) {
-      return;
-    }
-
-    // EXPO WEB
-    if (Platform.OS === 'web') {
-      const confirmou = window.confirm(
-        `Deseja realmente excluir o usuário "${usuario.name}"?`
-      );
-
-      if (confirmou) {
-        setUsuarios((listaAtual) =>
-          listaAtual.filter(
-            (item) => item.id !== id
-          )
-        );
-
-        setMensagem(
-          'Usuário excluído com sucesso!'
-        );
-      }
-
-      return;
-    }
-
-    // ANDROID / IOS
-    Alert.alert(
-      'Excluir usuário',
-      `Deseja realmente excluir "${usuario.name}"?`,
-      [
-        {
-          text: 'Cancelar',
-          style: 'cancel',
-        },
-        {
-          text: 'Excluir',
-          style: 'destructive',
-          onPress: () => {
-            setUsuarios((listaAtual) =>
-              listaAtual.filter(
-                (item) => item.id !== id
-              )
-            );
-
-            setMensagem(
-              'Usuário excluído com sucesso!'
-            );
-          },
-        },
-      ]
-    );
   };
 
   // =========================
@@ -142,15 +79,13 @@ export default function App() {
   // =========================
   const editarUsuario = (usuario) => {
     setUsuarioEditando(usuario.id);
-
     setNome(usuario.name);
-    setEndereco(usuario.address.street);
-
+    setEndereco(usuario.address?.street || '');
     setLatitude(usuario.latitude || '');
     setLongitude(usuario.longitude || '');
 
     setMensagem(
-      'Editando usuário. Altere os dados e clique em Atualizar.'
+      'Altere os dados e clique em Atualizar.'
     );
   };
 
@@ -165,32 +100,29 @@ export default function App() {
       !longitude.trim()
     ) {
       setMensagem(
-        'Por favor, preencha nome, endereço, latitude e longitude.'
+        'Preencha nome, endereço, latitude e longitude.'
       );
       return;
     }
 
-    setUsuarios((listaAtual) =>
-      listaAtual.map((usuario) => {
-        if (usuario.id === usuarioEditando) {
-          return {
-            ...usuario,
-            name: nome.trim(),
-            address: {
-              ...usuario.address,
-              street: endereco.trim(),
-            },
-            latitude: latitude.trim(),
-            longitude: longitude.trim(),
-          };
-        }
-
-        return usuario;
-      })
+    setUsuarios((lista) =>
+      lista.map((usuario) =>
+        usuario.id === usuarioEditando
+          ? {
+              ...usuario,
+              name: nome.trim(),
+              address: {
+                ...usuario.address,
+                street: endereco.trim(),
+              },
+              latitude: latitude.trim(),
+              longitude: longitude.trim(),
+            }
+          : usuario
+      )
     );
 
     limparFormulario();
-
     setMensagem('Usuário atualizado com sucesso!');
   };
 
@@ -199,47 +131,177 @@ export default function App() {
   // =========================
   const cancelarEdicao = () => {
     limparFormulario();
-
     setMensagem('Edição cancelada.');
+  };
+
+  // =========================
+  // EXCLUIR
+  // =========================
+  const excluirUsuario = (id) => {
+    const usuario = usuarios.find(
+      (item) => item.id === id
+    );
+
+    if (!usuario) return;
+
+    const excluir = () => {
+      setUsuarios((lista) =>
+        lista.filter((item) => item.id !== id)
+      );
+
+      if (usuarioEditando === id) {
+        limparFormulario();
+      }
+
+      setMensagem('Usuário excluído com sucesso!');
+    };
+
+    if (Platform.OS === 'web') {
+      if (
+        window.confirm(
+          `Deseja realmente excluir "${usuario.name}"?`
+        )
+      ) {
+        excluir();
+      }
+
+      return;
+    }
+
+    Alert.alert(
+      'Excluir usuário',
+      `Deseja realmente excluir "${usuario.name}"?`,
+      [
+        {
+          text: 'Cancelar',
+          style: 'cancel',
+        },
+        {
+          text: 'Excluir',
+          style: 'destructive',
+          onPress: excluir,
+        },
+      ]
+    );
   };
 
   // =========================
   // MOSTRAR LOCALIZAÇÃO
   // =========================
   const mostrarLocalizacao = (usuario) => {
-    const latitude =
-      usuario.latitude || 'Não informada';
+    const texto =
+      `Endereço: ${usuario.address?.street || 'Não informado'}\n\n` +
+      `Latitude: ${usuario.latitude || 'Não informada'}\n` +
+      `Longitude: ${usuario.longitude || 'Não informada'}`;
 
-    const longitude =
-      usuario.longitude || 'Não informada';
-
-    const endereco =
-      usuario.address?.street || 'Não informado';
-
-    const mensagemLocalizacao =
-      `Endereço: ${endereco}\n\n` +
-      `Latitude: ${latitude}\n` +
-      `Longitude: ${longitude}`;
-
-    // EXPO WEB
     if (Platform.OS === 'web') {
       window.alert(
-        `📍 Localização de ${usuario.name}\n\n${mensagemLocalizacao}`
+        `Localização de ${usuario.name}\n\n${texto}`
       );
-
       return;
     }
 
-    // ANDROID / IOS
-    Alert.alert(
-      `📍 Localização de ${usuario.name}`,
-      mensagemLocalizacao,
-      [
-        {
-          text: 'Fechar',
-          style: 'cancel',
-        },
-      ]
+    Alert.alert(`Localização de ${usuario.name}`, texto);
+  };
+
+  // =========================
+  // OBTER LOCALIZAÇÃO
+  // =========================
+  const obterLocalizacao = async () => {
+    if (
+      buscandoLocalizacao ||
+      testesLocalizacao.length >= 3
+    ) {
+      return;
+    }
+
+    setBuscandoLocalizacao(true);
+    setMensagem('');
+
+    try {
+      let posicao;
+
+      if (Platform.OS === 'web') {
+        if (!navigator.geolocation) {
+          throw new Error(
+            'Este navegador não oferece suporte à localização.'
+          );
+        }
+
+        posicao = await new Promise((resolve, reject) => {
+          navigator.geolocation.getCurrentPosition(
+            resolve,
+            reject,
+            {
+              enableHighAccuracy: true,
+              timeout: 20000,
+              maximumAge: 0,
+            }
+          );
+        });
+      } else {
+        const permissao =
+          await location.requestForegroundPermissionsAsync();
+
+        if (permissao.status !== 'granted') {
+          setMensagem(
+            'Permissão de localização negada.'
+          );
+          return;
+        }
+
+        posicao = await location.getCurrentPositionAsync({
+          accuracy: location.Accuracy.High,
+        });
+      }
+
+      const teste = {
+        numero: testesLocalizacao.length + 1,
+        latitude: posicao.coords.latitude,
+        longitude: posicao.coords.longitude,
+        precisao: posicao.coords.accuracy,
+      };
+
+      setTestesLocalizacao((anteriores) => [
+        ...anteriores,
+        teste,
+      ]);
+
+      setMensagem(`Teste ${teste.numero} registrado!`);
+    } catch (erro) {
+      console.error('Erro de localização:', erro);
+
+      if (Platform.OS === 'web') {
+        const mensagensErro = {
+          1: 'Permissão negada. Autorize a localização no navegador.',
+          2: 'Não foi possível determinar a localização.',
+          3: 'A localização demorou demais. Tente novamente.',
+        };
+
+        setMensagem(
+          `Erro: ${
+            mensagensErro[erro.code] ||
+            erro.message ||
+            'Falha ao obter a localização.'
+          }`
+        );
+      } else {
+        setMensagem(
+          'Não foi possível obter a localização. Verifique a permissão e tente novamente.'
+        );
+      }
+    } finally {
+      setBuscandoLocalizacao(false);
+    }
+  };
+
+  // =========================
+  // REINICIAR TESTES
+  // =========================
+  const reiniciarTestes = () => {
+    setTestesLocalizacao([]);
+    setMensagem(
+      'Medições reiniciadas. Faça o primeiro teste.'
     );
   };
 
@@ -248,7 +310,13 @@ export default function App() {
   // =========================
   useEffect(() => {
     fetch('https://jsonplaceholder.typicode.com/users')
-      .then((response) => response.json())
+      .then((response) => {
+        if (!response.ok) {
+          throw new Error('Falha ao carregar usuários.');
+        }
+
+        return response.json();
+      })
       .then((data) => {
         const usuariosComLocalizacao = data.map(
           (usuario) => ({
@@ -259,39 +327,39 @@ export default function App() {
         );
 
         setUsuarios(usuariosComLocalizacao);
-        setCarregando(false);
       })
-      .catch((error) => {
-        console.error(
-          'Erro ao buscar dados:',
-          error
-        );
-
-        setCarregando(false);
-
+      .catch((erro) => {
+        console.error('Erro ao buscar usuários:', erro);
         setMensagem(
           'Não foi possível carregar os usuários.'
         );
+      })
+      .finally(() => {
+        setCarregando(false);
       });
   }, []);
 
+  // =========================
+  // TELA
+  // =========================
   return (
-    <View style={styles.container}>
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={styles.conteudo}
+      keyboardShouldPersistTaps="handled"
+    >
+      <StatusBar style="auto" />
 
-      {/* TÍTULO */}
       <Text style={styles.titulo}>
         Sistema de Cadastro
       </Text>
 
-      {/* NOME DA DUPLA */}
       <Text style={styles.dupla}>
-        Thainá e Nicole - 3DS
+        Thainá - 3DS
       </Text>
 
       {/* FORMULÁRIO */}
       <View style={styles.form}>
-
-        {/* NOME */}
         <TextInput
           style={styles.input}
           placeholder="Digite o Nome"
@@ -299,7 +367,6 @@ export default function App() {
           onChangeText={setNome}
         />
 
-        {/* ENDEREÇO */}
         <TextInput
           style={styles.input}
           placeholder="Digite o Endereço"
@@ -307,7 +374,6 @@ export default function App() {
           onChangeText={setEndereco}
         />
 
-        {/* LATITUDE */}
         <TextInput
           style={styles.input}
           placeholder="Digite a Latitude"
@@ -316,7 +382,6 @@ export default function App() {
           keyboardType="numeric"
         />
 
-        {/* LONGITUDE */}
         <TextInput
           style={styles.input}
           placeholder="Digite a Longitude"
@@ -325,10 +390,8 @@ export default function App() {
           keyboardType="numeric"
         />
 
-        {/* MODO EDITAR */}
         {usuarioEditando !== null ? (
-          <View>
-
+          <>
             <TouchableOpacity
               style={styles.botaoAtualizar}
               onPress={atualizarUsuario}
@@ -346,11 +409,8 @@ export default function App() {
                 Cancelar
               </Text>
             </TouchableOpacity>
-
-          </View>
+          </>
         ) : (
-
-          /* MODO CADASTRAR */
           <TouchableOpacity
             style={styles.botao}
             onPress={adicionarUsuario}
@@ -359,9 +419,7 @@ export default function App() {
               Cadastrar
             </Text>
           </TouchableOpacity>
-
         )}
-
       </View>
 
       {/* MENSAGEM */}
@@ -373,119 +431,177 @@ export default function App() {
         </View>
       )}
 
-      {/* LISTA */}
-      {carregando ? (
+      {/* TESTES DE LOCALIZAÇÃO */}
+      <View style={styles.form}>
+        <Text style={styles.nome}>
+          Teste de localização
+        </Text>
 
+        <Text style={styles.endereco}>
+          {testesLocalizacao.length < 3
+            ? `Tentativa ${testesLocalizacao.length + 1} de 3`
+            : 'As três tentativas foram concluídas.'}
+        </Text>
+
+        <TouchableOpacity
+          style={[
+            styles.botaoLocalizacao,
+            (buscandoLocalizacao ||
+              testesLocalizacao.length >= 3) &&
+              styles.botaoDesabilitado,
+          ]}
+          onPress={obterLocalizacao}
+          disabled={
+            buscandoLocalizacao ||
+            testesLocalizacao.length >= 3
+          }
+        >
+          <Text style={styles.textoBotao}>
+            {buscandoLocalizacao
+              ? 'Obtendo localização...'
+              : 'Obter minha localização'}
+          </Text>
+        </TouchableOpacity>
+
+        {testesLocalizacao.map((teste) => (
+          <View
+            key={teste.numero}
+            style={styles.card}
+          >
+            <Text style={styles.nome}>
+              Teste {teste.numero}
+            </Text>
+
+            <Text style={styles.coordenadas}>
+              Latitude: {teste.latitude.toFixed(6)}
+            </Text>
+
+            <Text style={styles.coordenadas}>
+              Longitude: {teste.longitude.toFixed(6)}
+            </Text>
+
+            <Text style={styles.coordenadas}>
+              Precisão estimada:{' '}
+              {teste.precisao == null
+                ? 'Não informada'
+                : `${teste.precisao.toFixed(2)} metros`}
+            </Text>
+          </View>
+        ))}
+
+        {testesLocalizacao.length === 3 && (
+          <>
+            <Text style={styles.nome}>
+              Comparação dos resultados
+            </Text>
+
+            <Text style={styles.endereco}>
+              Compare as latitudes, longitudes e precisões
+              das três tentativas. Resultados iguais ou
+              próximos também são válidos.
+            </Text>
+
+            <TouchableOpacity
+              style={styles.botao}
+              onPress={reiniciarTestes}
+            >
+              <Text style={styles.textoBotao}>
+                Reiniciar testes
+              </Text>
+            </TouchableOpacity>
+          </>
+        )}
+      </View>
+
+      {/* LISTA DE USUÁRIOS */}
+      <Text style={styles.tituloLista}>
+        Usuários cadastrados
+      </Text>
+
+      {carregando ? (
         <ActivityIndicator
           size="large"
           color="#0000ff"
         />
-
+      ) : usuarios.length === 0 ? (
+        <View style={styles.card}>
+          <Text style={styles.endereco}>
+            Nenhum usuário disponível.
+          </Text>
+        </View>
       ) : (
+        usuarios.map((item) => (
+          <View key={item.id} style={styles.card}>
+            <Text style={styles.nome}>
+              {item.name}
+            </Text>
 
-        <FlatList
-          data={usuarios}
+            <Text style={styles.endereco}>
+              {item.address?.street || 'Sem endereço'}
+              {item.address?.suite
+                ? `, ${item.address.suite}`
+                : ''}
+              {item.address?.city
+                ? ` - ${item.address.city}`
+                : ''}
+            </Text>
 
-          keyExtractor={(item) =>
-            item.id.toString()
-          }
+            <Text style={styles.coordenadas}>
+              Latitude: {item.latitude || 'Não informada'}
+            </Text>
 
-          renderItem={({ item }) => (
+            <Text style={styles.coordenadas}>
+              Longitude: {item.longitude || 'Não informada'}
+            </Text>
 
-            <View style={styles.card}>
+            <View style={styles.botoes}>
+              <TouchableOpacity
+                style={styles.botaoEditar}
+                onPress={() => editarUsuario(item)}
+              >
+                <Text style={styles.textoBotao}>
+                  Editar
+                </Text>
+              </TouchableOpacity>
 
-              {/* NOME */}
-              <Text style={styles.nome}>
-                {item.name}
-              </Text>
+              <TouchableOpacity
+                style={styles.botaoLocalizacao}
+                onPress={() => mostrarLocalizacao(item)}
+              >
+                <Text style={styles.textoBotao}>
+                  Localização
+                </Text>
+              </TouchableOpacity>
 
-              {/* ENDEREÇO */}
-              <Text style={styles.endereco}>
-                {item.address.street}
-
-                {item.address.suite
-                  ? `, ${item.address.suite}`
-                  : ''}
-
-                {item.address.city
-                  ? ` - ${item.address.city}`
-                  : ''}
-              </Text>
-
-              {/* COORDENADAS */}
-              <Text style={styles.coordenadas}>
-                Latitude:{' '}
-                {item.latitude || 'Não informada'}
-              </Text>
-
-              <Text style={styles.coordenadas}>
-                Longitude:{' '}
-                {item.longitude || 'Não informada'}
-              </Text>
-
-              {/* BOTÕES */}
-              <View style={styles.botoes}>
-
-                {/* EDITAR */}
-                <TouchableOpacity
-                  style={styles.botaoEditar}
-                  onPress={() =>
-                    editarUsuario(item)
-                  }
-                >
-                  <Text style={styles.textoBotao}>
-                    Editar
-                  </Text>
-                </TouchableOpacity>
-
-                {/* LOCALIZAÇÃO */}
-                <TouchableOpacity
-                  style={styles.botaoLocalizacao}
-                  onPress={() =>
-                    mostrarLocalizacao(item)
-                  }
-                >
-                  <Text style={styles.textoBotao}>
-                    Localização
-                  </Text>
-                </TouchableOpacity>
-
-                {/* EXCLUIR */}
-                <TouchableOpacity
-                  style={styles.botaoExcluir}
-                  onPress={() =>
-                    excluirUsuario(item.id)
-                  }
-                >
-                  <Text style={styles.textoBotao}>
-                    Excluir
-                  </Text>
-                </TouchableOpacity>
-
-              </View>
-
+              <TouchableOpacity
+                style={styles.botaoExcluir}
+                onPress={() => excluirUsuario(item.id)}
+              >
+                <Text style={styles.textoBotao}>
+                  Excluir
+                </Text>
+              </TouchableOpacity>
             </View>
-
-          )}
-
-          style={styles.lista}
-        />
-
+          </View>
+        ))
       )}
-
-      <StatusBar style="auto" />
-
-    </View>
+    </ScrollView>
   );
 }
 
+// =========================
+// ESTILOS
+// =========================
 const styles = StyleSheet.create({
-
   container: {
     flex: 1,
     backgroundColor: '#d2e2ff',
+  },
+
+  conteudo: {
     paddingTop: 60,
     paddingHorizontal: 20,
+    paddingBottom: 30,
   },
 
   titulo: {
@@ -502,21 +618,22 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
 
+  tituloLista: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    textAlign: 'center',
+    marginTop: 10,
+    marginBottom: 12,
+  },
+
   form: {
     backgroundColor: '#f7f8fa',
     padding: 15,
     borderRadius: 8,
     marginBottom: 10,
-
     elevation: 3,
-
     shadowColor: '#000',
-
-    shadowOffset: {
-      width: 0,
-      height: 1,
-    },
-
+    shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.2,
     shadowRadius: 1.41,
   },
@@ -550,12 +667,14 @@ const styles = StyleSheet.create({
     padding: 12,
     borderRadius: 6,
     alignItems: 'center',
+    marginBottom: 5,
   },
 
   textoBotao: {
-    color: '#ffffff',
+    color: '#fff',
     fontWeight: 'bold',
-    fontSize: 16,
+    fontSize: 14,
+    textAlign: 'center',
   },
 
   mensagem: {
@@ -573,25 +692,14 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
 
-  lista: {
-    width: '100%',
-  },
-
   card: {
-    backgroundColor: '#ffffff',
+    backgroundColor: '#fff',
     padding: 15,
     borderRadius: 8,
     marginBottom: 10,
-
     elevation: 2,
-
     shadowColor: '#000',
-
-    shadowOffset: {
-      width: 0,
-      height: 1,
-    },
-
+    shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.2,
     shadowRadius: 1.41,
   },
@@ -616,6 +724,7 @@ const styles = StyleSheet.create({
 
   botoes: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     marginTop: 12,
     gap: 8,
   },
@@ -644,4 +753,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
 
+  botaoDesabilitado: {
+    opacity: 0.5,
+  },
 });
